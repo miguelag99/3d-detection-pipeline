@@ -1,0 +1,6 @@
+configargparse==1.
+opencv-python
+scipy==1.1.0
+tensorboardx
+tqdm
+pillow==6.2.0
