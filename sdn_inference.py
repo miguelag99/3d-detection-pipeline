@@ -83,7 +83,8 @@ def main():
                      .format(WEIGHTS, checkpoint['epoch']))
     else:
         print('[Attention]: Can not find checkpoint {}'.format(WEIGHTS))
-    
+
+    # Inference and save with time measurements
 
     os.makedirs(SAVE_PATH + '/depth_maps/' + DATA_TAG, exist_ok=True)
 
@@ -94,6 +95,7 @@ def main():
         
         for idx, name in enumerate(filename):
             np.save(SAVE_PATH + '/depth_maps/' + DATA_TAG + '/' + name, pred_disp[idx][-H[idx]:, :W[idx]])
+
     import sys
     sys.exit()
 
@@ -102,16 +104,30 @@ def main():
 
     
 def inference(imgL, imgR, calib, model):
+
+    # LOGGERS
+    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+
     model.eval()
     imgL, imgR, calib = imgL.cuda(), imgR.cuda(), calib.float().cuda()
-    torch.cuda.synchronize()
-    with torch.no_grad():
-        tic = time.time()
+    start_time = time.time()
+    with torch.no_grad():  
+        starter.record()      
         output = model(imgL, imgR, calib)
-        print(time.time()-tic)
+        ender.record()
+        torch.cuda.synchronize()
+
+    print("CUDA elapsed time: %s",str(starter.elapsed_time(ender)))
+    
+    elapsed_time = time.time() - start_time
+    print('Sys elapesed time: %s' % str(elapsed_time))
+    
+
     if args.data_type == 'disparity':
         output = disp2depth(output, calib)
     pred_disp = output.data.cpu().numpy()
+
+
 
     return pred_disp
 
