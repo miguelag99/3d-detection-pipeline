@@ -1,5 +1,5 @@
 /results
-model_best.pth.tar
+/checkpoints
 imagenes.txt
 /network_inference/geometric_3d_estimation/yolov5/yolov5l.pt
 

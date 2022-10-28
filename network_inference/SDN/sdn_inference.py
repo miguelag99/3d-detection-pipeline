@@ -54,13 +54,9 @@ args = parser.parse_args()
 
 DATAPATH = '/home/robesafe/Datasets/kitti_pseudolidar/training'
 ROOT_PATH = '/home/robesafe/Miguel/3d-detection-pipeline'
-# SAVE_PATH = './results/'
-# IMAGE_LIST = './imagenes.txt'
-# WEIGHTS = './model_best.pth.tar'
-# DATA_TAG = 'pruebas'
 SAVE_PATH = os.path.join(ROOT_PATH,'results/SDN')
-IMAGE_LIST = os.path.join(ROOT_PATH,'imagenes.txt') 
-WEIGHTS = os.path.join(ROOT_PATH,'model_best.pth.tar') 
+IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets/val.txt') 
+WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/model_best.pth.tar') 
 DATA_TAG = 'pruebas'
 
 def main():
@@ -80,8 +76,6 @@ def main():
 
     model = nn.DataParallel(model).cuda()
     torch.backends.cudnn.benchmark = True
-
-
 
     if os.path.isfile(WEIGHTS):
             print("=> loading checkpoint '{}'".format(WEIGHTS))
@@ -125,10 +119,10 @@ def inference(imgL, imgR, calib, model):
         ender.record()
         torch.cuda.synchronize()
 
-    print("CUDA elapsed time: %s",str(starter.elapsed_time(ender)))
+    # print("CUDA elapsed time: %s",str(starter.elapsed_time(ender)))
     
     elapsed_time = time.time() - start_time
-    print('Sys elapesed time: %s' % str(elapsed_time))
+    # print('Sys elapesed time: %s' % str(elapsed_time))
     
 
     if args.data_type == 'disparity':

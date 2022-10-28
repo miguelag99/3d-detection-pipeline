@@ -29,31 +29,26 @@ def main():
         os.mkdir(args.save_path)
 
     depth_files = sorted(os.path.join(args.depth_path,d_file) for d_file in os.listdir(args.depth_path) if d_file.endswith('.npy'))
-
-    # process_depth_files(depth_files[0:1],args.save_path)
+ 
 
     x = Thread(target=process_depth_files,
-        args=(depth_files[0:int(np.floor(len(depth_files)*0.25))],args.save_path,))
+        args=(depth_files[:int(np.ceil(len(depth_files)*0.25))],args.save_path,))
     y = Thread(target=process_depth_files,
-        args=(depth_files[int(np.floor(len(depth_files)*0.25)):int(np.floor(len(depth_files)*0.5))],args.save_path,))
+        args=(depth_files[int(np.ceil(len(depth_files)*0.25)):int(np.ceil(len(depth_files)*0.5))],args.save_path,))
     z = Thread(target=process_depth_files,
-        args=(depth_files[int(np.floor(len(depth_files)*0.5)):int(np.floor(len(depth_files)*0.75))],args.save_path,))
+        args=(depth_files[int(np.ceil(len(depth_files)*0.5)):int(np.ceil(len(depth_files)*0.75))],args.save_path,))
     w = Thread(target=process_depth_files,
-        args=(depth_files[int(np.floor(len(depth_files)*0.75)):-1],args.save_path,))
+        args=(depth_files[int(np.ceil(len(depth_files)*0.75)):],args.save_path,))
 
     x.start()
     y.start()
     z.start()
     w.start()
-
-    # np.set_printoptions(threshold=sys.maxsize)
-    # test_f = depth_read('/home/robesafe/Datasets/kitti_depth/val/2011_09_26_drive_0002_sync/proj_depth/groundtruth/image_02/0000000005.png')
     
 
 
 
 def process_depth_files(source_depth, dest_folder):
-
     # Transform npy depth into rgb depth image with kitti format
 
     tqdm_iter = tqdm(source_depth,total=len(source_depth))
@@ -62,7 +57,7 @@ def process_depth_files(source_depth, dest_folder):
        
         f = np.load(f_path)
         file_name = f_path.split('/')[-1].split('.')[0]
-        
+                
         # f[f > 100] = 0
         f[f == -1] = 0
         f = f*256.

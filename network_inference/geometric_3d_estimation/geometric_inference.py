@@ -10,14 +10,18 @@ from tqdm import tqdm
 DATAPATH = '/home/robesafe/Datasets/kitti_pseudolidar/training'
 ROOT_PATH = '/home/robesafe/Miguel/3d-detection-pipeline'
 SAVE_PATH = os.path.join(ROOT_PATH,'results/geometric_estimation')
-IMAGE_LIST_TXT = os.path.join(ROOT_PATH,'ImageSets/val.txt')
+IMAGE_LIST_TXT = os.path.join(ROOT_PATH,'ImageSets/trainval.txt')
 YOLO_REPO = os.path.join(ROOT_PATH,'network_inference/geometric_3d_estimation/yolov5')
 WEIGHTS = os.path.join(YOLO_REPO,'yolov5l.pt')
 
+# CLASS_DICT = {
+#     "Pedestrian": 0,
+#     "Cyclist": 1,
+#     "Car": 2
+# }
+
 CLASS_DICT = {
-    "Pedestrian": 0,
-    "Cyclist": 1,
-    "Car": 2
+    "Car": 0
 }
 
 CLASS_MEAN_3D = {
@@ -31,11 +35,11 @@ CAMERA_HEIGHT = 1.65
 class Yolo_inference():
     def __init__(self,weights):
         self.yolo = torch.hub.load(YOLO_REPO, 'custom', path=weights, source='local')
-        self.yolo.conf = 0.5
+        self.yolo.conf = 0.3
         self.yolo.iou = 0.45
         # object idx: ['person', 'bicycle', 'car', 'motorcycle', 'bus', 'traffic light', 'stop sign']
         # OBJECT_DETECTOR_2D_list = [0,1,2,3,5,9,11]
-        self.yolo.classes = [0,1,2]
+        self.yolo.classes = [0]
         self.yolo.agnostic = False
 
     def detection2d_pipeline(self, img_batch):
@@ -81,15 +85,20 @@ def pix2realworld(P,detections,result_name, im):
             return None
         pose_est = np.dot(p_camera, K)
         
-        alpha = 0
+        alpha = np.pi/2
         theta_ray = 0
         bbox = (obj['xmin'],obj['ymin'],obj['xmax'],obj['ymax'])
         conf = obj['confidence']
         dim = CLASS_MEAN_3D[cls]
 
-        result_fd.write("{} -1 -1 {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f}".format(\
-        cls,alpha,bbox[0],bbox[1],bbox[2],bbox[3],\
-        dim[0],dim[1],dim[2],pose_est[0],pose_est[1],pose_est[2],alpha+theta_ray,conf)+os.linesep)
+        if pose_est[2] < 20:
+            result_fd.write("{} -1 -1 {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f}".format(\
+            cls,alpha,bbox[0],bbox[1],bbox[2],bbox[3],\
+            dim[0],dim[1],dim[2],pose_est[0],pose_est[1],pose_est[2]+(dim[2]/2),alpha+theta_ray,conf)+os.linesep)
+        else:
+            result_fd.write("{} -1 -1 {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f}".format(\
+            cls,alpha,bbox[0],bbox[1],bbox[2],bbox[3],\
+            dim[0],dim[1],dim[2],pose_est[0],pose_est[1],pose_est[2],alpha+theta_ray,conf)+os.linesep)
 
         # cv2.imshow('Color image', im)
         # cv2.waitKey(0)
