@@ -53,9 +53,10 @@ parser.add_argument('--workers', type=int, default=8,
 args = parser.parse_args()
 
 DATAPATH = '/home/robesafe/Datasets/kitti_pseudolidar/training'
-ROOT_PATH = '/home/robesafe/Miguel/3d-detection-pipeline'
+ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
 SAVE_PATH = os.path.join(ROOT_PATH,'results/SDN')
-IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets/val.txt') 
+# IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets/val.txt') 
+IMAGE_LIST = os.path.join(ROOT_PATH,'imagenes.txt') 
 WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/model_best.pth.tar') 
 DATA_TAG = 'pruebas'
 
@@ -92,7 +93,7 @@ def main():
 
     tqdm_eval_loader = tqdm(TestImgLoader, total=len(TestImgLoader))
     for batch_idx, (imgL_crop, imgR_crop, calib, H, W, filename) in enumerate(tqdm_eval_loader):
-        
+        print(calib)
         pred_disp = inference(imgL_crop, imgR_crop, calib, model)
         
         for idx, name in enumerate(filename):
@@ -112,6 +113,8 @@ def inference(imgL, imgR, calib, model):
 
     model.eval()
     imgL, imgR, calib = imgL.cuda(), imgR.cuda(), calib.float().cuda()
+    print(f'imgL shape: {imgL.shape} {type(imgL)}, imgR shape: {imgR.shape} {type(imgR)}, calib shape: {calib.shape} {type(calib)}')
+    
     start_time = time.time()
     with torch.no_grad():  
         starter.record()      

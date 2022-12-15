@@ -1,13 +1,15 @@
 import os
 
+import numpy as np
 import torch
 import torchvision.transforms as T
 from typing import List
 
-from src.stereonet.model import StereoNet
-from src.stereonet import stereonet_types as st
-import src.stereonet.utils as utils
+
 from dataloader import KITTIDataset
+
+from stereonet import utils as utils
+from stereonet.model import StereoNet
 
 
 DATAPATH = '/home/robesafe/Datasets/kitti_pseudolidar/training'
@@ -21,42 +23,41 @@ WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/StereoNet/epoch=20-step=744533.ckp
 
 def main():
 
-    device = torch.device("cuda:0" if False else "cpu")
-    model = StereoNet.load_from_checkpoint(WEIGHTS)
-    model.to(device)
-    model.eval()
-
-    batch_size = 1
-
-    val_transforms: List[st.TorchTransformer] = [utils.Rescale()]
-    val_dataset = KITTIDataset(DATAPATH,IMAGE_LIST)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=8, drop_last=False)
-
-    max_disp = model.candidate_disparities if model.mask else float('inf')
-
-
     # LOGGERS
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
+    with open(IMAGE_LIST,'r') as f_content:
+        images_path = list(map(lambda x: x.split('\n')[0], f_content.readlines()))
+        
+    model = StereoNet.load_from_checkpoint(WEIGHTS)
 
-    for batch_idx, sample in enumerate(val_loader):
+    for image_name in images_path:
+        
+        left_path = os.path.join(DATAPATH, 'image_2', image_name +'.png')
+        right_path = os.path.join(DATAPATH, 'image_3', image_name +'.png')
 
-        left_im = sample[0][0]
-        right_im = sample[1][0]
+        print(left_path)
+    
+        sample = {'left': utils.image_loader(left_path)[:,:1000],
+                'right': utils.image_loader(right_path)[:,:1000]
+                }
 
-        batch = {'left': left_im, 'right': right_im}
-        # batch = utils.ToTensor()(numpy_batch)
-        tensor_transformers = [utils.Resize((640, 960)), utils.Rescale(), utils.PadSampleToBatch()]
-        for transformer in tensor_transformers:
-            batch = transformer(batch)
+        transformers = [utils.ToTensor(), utils.PadSampleToBatch()]
+        for transformer in transformers:
+            sample = transformer(sample)
 
+        model.eval()
         with torch.no_grad():
             starter.record()
-            prediction = model(batch)[0].cpu().numpy()
+            batched_prediction = model(sample)
             ender.record()
             torch.cuda.synchronize()
-            print("CUDA elapsed time: ",str(starter.elapsed_time(ender)))
+            print(f'Inference time: {starter.elapsed_time(ender)} ms')
+        
+        single_prediction = batched_prediction[0].numpy()  # [batch, ...] -> [...]
+        single_prediction = np.moveaxis(single_prediction, 0, 2)  # [channel, height, width] -> [height, width, channel]
 
+        print(single_prediction.shape)
 
 if __name__ == '__main__':
     main()

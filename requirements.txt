@@ -8,3 +8,4 @@ pytorch-lightning==1.5.9
 torchvision==0.11.3
 scikit_image
 setuptools==59.5.0
+ruamel.yaml

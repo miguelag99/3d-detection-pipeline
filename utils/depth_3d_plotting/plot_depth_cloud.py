@@ -8,8 +8,8 @@ import math
 
 from generate_lidar_from_depth import depth_2_pointcloud
 
-ROOT_PATH = '/home/robesafe/Miguel/3d-detection-pipeline'
-DEPTH_PATH = os.path.join(ROOT_PATH,'results/mobilestereonet/depth_maps/')
+ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
+DEPTH_PATH = os.path.join(ROOT_PATH,'results/SDN/depth_maps/')
 KITTI_PATH = "/home/robesafe/Datasets/kitti_pseudolidar/training/"
 VELO_PATH = os.path.join(KITTI_PATH,"velodyne/")
 CALIB_PATH = os.path.join(KITTI_PATH,"calib/")
@@ -18,20 +18,28 @@ GT_PATH = os.path.join(KITTI_PATH,'label_2/')
 def main(transform_coord = False):
 
     # Load and transform data
-    id = 0
 
-    depth_files = [DEPTH_PATH + name for name in sorted(os.listdir(DEPTH_PATH)) if name.endswith('.npy')]
-    gt_file = os.path.join(GT_PATH, depth_files[id].split('/')[-1].split('.')[0] + '.txt')
-    calib_file = os.path.join(CALIB_PATH, depth_files[id].split('/')[-1].split('.')[0] + '.txt')
-    velo_file = os.path.join(VELO_PATH, depth_files[id].split('/')[-1].split('.')[0] + '.bin')
+    # 5(pedestrian 25m wrong),8(cars with noise),28(close pedestrian),47(multiple cars)
+
+    id = 5
+
+    assert os.path.isfile(DEPTH_PATH + '{:06d}.npy'.format(id)), 'Depth file not found'
+
+    # depth_files = [DEPTH_PATH + name for name in sorted(os.listdir(DEPTH_PATH)) if name.endswith('.npy')]
+    # im_name = depth_files[id].split('/')[-1].split('.')[0]
+
+    im_name = '{:06d}'.format(id)
+
+    gt_file = os.path.join(GT_PATH, im_name + '.txt')
+    calib_file = os.path.join(CALIB_PATH, im_name + '.txt')
+    velo_file = os.path.join(VELO_PATH, im_name + '.bin')
+    depth_file = os.path.join(DEPTH_PATH, im_name + '.npy')
     
-    pointcloud = depth_2_pointcloud(calib_file,depth_dir=depth_files[id],save_dir=None,max_high=1).reshape([-1,4])
+    pointcloud = depth_2_pointcloud(calib_file,depth_dir=depth_file,save_dir=None,max_high=1).reshape([-1,4])
     velo = np.fromfile(velo_file,dtype=np.float32, count=-1).reshape([-1,4])
     
-    print(f'Shape velo:{velo.shape} and shape depth:{pointcloud.shape}')
-    # print(velo)
-    # print(pointcloud)
-
+    print(f'Shape velo:{velo.shape} and shape depth:{pointcloud.shape} of image {im_name}')
+    
 
     # Transformation matrices
 
@@ -55,8 +63,7 @@ def main(transform_coord = False):
     if transform_coord:
     ######### Cambiar las coordenadas de camara a LiDAR
         pointcloud = np.transpose(Tr_cam_to_velo @ R0_rect_inv @ np.transpose(pointcloud))
-
-    print(pointcloud)
+    # print(pointcloud)
 
 
     # Plotting
@@ -106,10 +113,15 @@ def main(transform_coord = False):
         plot_3d_box(f_kitti.iloc[i],fig,Tr_cam_to_velo,R0_rect_inv)
 
 
-    x=np.linspace(5,5,50)
-    y=np.linspace(0,0,50)
-    z=np.linspace(0,5,50)
-    mayavi.mlab.plot3d(x,y,z)
+    x=np.linspace(0,50,6)
+    y=np.linspace(0,0,6)
+    z=np.linspace(0,0,6)
+    print(x)
+    mayavi.mlab.points3d(x,y,z,
+                         mode="sphere",
+                        scale_factor = 0.5,
+                        colormap='spectral', # 'bone', 'copper', 'gnuplot'
+                        figure=fig)
     mayavi.mlab.show()
     
 
@@ -125,7 +137,6 @@ def plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv):
     y = row['y']
     z = row['z']
 
-    print('------------------------------')
     bbox_3d = create_3d_bbox(row['rot'],(row['h'],row['w'],row['l']),(x,y,z))
     bbox_3d = Tr_cam_to_velo @ R0_rect_inv @ bbox_3d
     bbox_3d = np.hstack((bbox_3d[:,0:4],bbox_3d[:,0],bbox_3d[:,4:],bbox_3d[:,4:6],bbox_3d[:,1:3],bbox_3d[:,6:8],bbox_3d[:,3]))
