@@ -17,12 +17,7 @@ from ruamel.yaml import YAML
 
 # from models import *
 from utils.load import load_class
-from dataloaders import listflowfile as lt
-from dataloaders import SceneFlowLoader as SFL
-from dataloaders import KITTIloader2012 as ls12
-from dataloaders import KITTIloader2015 as ls15
-from dataloaders import KITTILoader as KL
-from dataloaders import KITTI_submission_loader as KSL
+
 
 import pdb
 

@@ -2,16 +2,13 @@ import configargparse
 import os
 import torch
 import torch.nn as nn
-import torch.optim as optim
+
 import numpy as np
 import time
 
 from tqdm import tqdm
-from torch.optim.lr_scheduler import MultiStepLR
 
 import models
-from dataloader import KITTILoader3D
-from dataloader import KITTILoader_dataset3d
 
 
 parser = configargparse.ArgParser(description='PSMNet')

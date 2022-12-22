@@ -9,7 +9,6 @@ import torch.nn as nn
 from tqdm import tqdm
 from PIL import Image
 
-
 from torch.utils.data import DataLoader
 
 from datasets import __datasets__
@@ -17,10 +16,10 @@ from models import __models__
 
 
 DATAPATH = '/home/robesafe/Datasets/kitti_pseudolidar/training'
-ROOT_PATH = '/home/robesafe/Miguel/3d-detection-pipeline'
+ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
 SAVE_PATH = os.path.join(ROOT_PATH,'results/mobilestereonet')
-# IMAGE_LIST = os.path.join(ROOT_PATH,'imagenes.txt') 
-IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets/val.txt') 
+IMAGE_LIST = os.path.join(ROOT_PATH,'imagenes.txt') 
+# IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets/val.txt') 
 WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/mobilestereonet/MSNet2D_SF_DS_KITTI2015.ckpt') 
 DATA_TAG = 'pruebas'
 KITTI_STEREO_BASELINE = 0.54    # distance between left and right images in meters (KITTI)
@@ -108,6 +107,8 @@ def test_sample(sample,model):
     disp_ests = model(sample['left'].cuda(), sample['right'].cuda())
     ender.record()
     torch.cuda.synchronize()
+
+    print(sample['left'].shape, sample['right'].shape)
 
     # print("CUDA elapsed time: ",str(starter.elapsed_time(ender)))
 
