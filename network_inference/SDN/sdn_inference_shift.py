@@ -51,20 +51,16 @@ parser.add_argument('--workers', type=int, default=0,
                     help='number of dataset workers')
 args = parser.parse_args()
 
-DATAPATH = '/home/robesafe/Datasets/kitti_pseudolidar/training'
-# DATAPATH = '/media/robesafe/ff0fec18-b200-4f1b-b17e-f2c93f81163b1/shift_dataset/training'
-ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
-SAVE_PATH = os.path.join(ROOT_PATH,'results/SDN_kitti')
-IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets','trainval.txt') 
-# IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets','trainval.txt') 
-# IMAGE_LIST = '/media/robesafe/ff0fec18-b200-4f1b-b17e-f2c93f81163b1/shift_dataset/training.txt'
 
-WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/fine_tune_kitti_trainval_last.tar') 
+DATAPATH = '/home/robesafe/Datasets/shift_dataset/training'
+ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
+SAVE_PATH = os.path.join(ROOT_PATH,'results/SDN_shift')
+IMAGE_LIST = '/home/robesafe/Datasets/shift_dataset/trainval.txt'
+
+WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/shift_checkpoint_25.pth.tar') 
 DATA_TAG = 'pruebas'
 
-
 im_dim = (cv2.imread(DATAPATH + '/image_2/000000.png')).shape
-print(im_dim)
 
 def main():
 
@@ -72,10 +68,10 @@ def main():
         os.mkdir(SAVE_PATH)
 
     TrainImgLoader = None
-    # Data Loader for KITTI
-    import dataloader.KITTI_submission_loader  as KITTI_submission_loader
+    # Data Loader for shift
+    import dataloader.SHIFT_loader  as SHIFT_loader
     TestImgLoader = torch.utils.data.DataLoader(
-        KITTI_submission_loader.SubmiteDataset(DATAPATH, IMAGE_LIST, False),
+        SHIFT_loader.SHIFT_Dataset(DATAPATH, IMAGE_LIST, False),
         batch_size=args.bval, shuffle=False, num_workers=0, drop_last=False)
 
         
@@ -101,9 +97,10 @@ def main():
         os.makedirs(SAVE_PATH + '/depth_maps/', exist_ok=True)
 
     tqdm_eval_loader = tqdm(TestImgLoader, total=len(TestImgLoader),desc="Inference")
-    for batch_idx, (imgL_crop, imgR_crop, calib, H, W, filename) in enumerate(tqdm_eval_loader):
-        # print(f'imgL shape: {imgL_crop.shape} {type(imgL_crop)}, imgR shape: {imgR_crop.shape} {type(imgR_crop)}')
-        pred_disp = inference(imgL_crop, imgR_crop, calib, model)
+    for batch_idx, (imgL_crops, imgR_crops, calib, H, W, filename) in enumerate(tqdm_eval_loader):
+        # print(f'imgL shape: {imgL_crop[0].shape} {type(imgL_crop)}, imgR shape: {imgR_crop[0].shape} {type(imgR_crop)}')
+        
+        pred_disp = inference(imgL_crops, imgR_crops, calib, model)
         
         for idx, name in enumerate(filename):
             # np.save(SAVE_PATH + '/depth_maps/' + DATA_TAG + '/' + name, pred_disp[idx][-H[idx]:, :W[idx]])
@@ -116,42 +113,48 @@ def main():
 
 
     
-def inference(imgL, imgR, calib, model):
-
-    # LOGGERS
-    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+def inference(imgL_crops, imgR_crops, calib, model):
 
     model.eval()
     
-    imgL, imgR, calib = imgL.cuda(), imgR.cuda(), calib.float().cuda()
+    calib = calib.float().cuda()
+
     # print(f'imgL shape: {imgL.shape} {type(imgL)}, imgR shape: {imgR.shape} {type(imgR)}, calib shape: {calib.shape} {type(calib)}')
     
-    start_time = time.time()
+    output = []
     with torch.no_grad():  
-        starter.record()      
-        output = model(imgL, imgR, calib)
-        ender.record()
-        torch.cuda.synchronize()
+        for imgL_crop, imgR_crop in zip(imgL_crops, imgR_crops):
+            imgL = imgL_crop.cuda()
+            imgR = imgR_crop.cuda()
+            output.append(model(imgL, imgR, calib))
 
-    # print("CUDA elapsed time: %s",str(starter.elapsed_time(ender)))
     
-    elapsed_time = time.time() - start_time
-    # print('Sys elapesed time: %s' % str(elapsed_time))
     
-    # print(f"Out batch size: {output.shape}")
-
     if args.data_type == 'disparity':
-        output = disp2depth(output, calib)
+        for i in range(len(output)):
+            output[i] = disp2depth(output[i], calib)
+    pred_disp = torch.concat(output, dim=1)
 
-   
-    pred_disp = output.data.cpu().numpy()
+    # print(f'pred_disp shape: {pred_disp.shape} {type(pred_disp)}')
+    # print(im_dim[1] - pred_disp.shape[2], im_dim[0]-pred_disp.shape[1])
 
+    if pred_disp.shape[1] != im_dim[1]:
+            # Pad with zeros to match the original image size
+            pred_disp = F.pad(pred_disp, (0, im_dim[1] - pred_disp.shape[2], 0, im_dim[0]-pred_disp.shape[1]), mode='constant', value=0)
 
-    disp_as_img = cv2.resize(pred_disp[0,:,:], (im_dim[1], im_dim[0]), interpolation=cv2.INTER_NEAREST)
-    pred_disp = np.zeros((1, im_dim[0], im_dim[1]))
-    pred_disp[0,:,:] = disp_as_img
+    # print(f'final shape: {pred_disp.shape} {type(pred_disp)}')
 
-    return pred_disp
+    # output = [o.data.cpu().numpy() for o in output]
+    # pred_disp =  np.hstack(output)
+
+    
+
+    
+    # disp_as_img = cv2.resize(pred_disp[0,:,:], (im_dim[1], im_dim[0]))
+    # pred_disp = np.zeros((1, im_dim[0], im_dim[1]))
+    # pred_disp[0,:,:] = disp_as_img
+
+    return pred_disp.data.cpu().numpy()
 
 def disp2depth(disp, calib):
     depth = calib[:, None, None] / disp.clamp(min=1e-8)

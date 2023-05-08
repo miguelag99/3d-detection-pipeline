@@ -1,6 +1,7 @@
 import os
 import torchvision.transforms as transforms
 import torch.nn.functional as F
+import torch
 import PIL.Image as Image
 import numpy as np
 
@@ -38,7 +39,7 @@ def dynamic_baseline(calib_info):
     baseline = P3[0,3]/(-P3[0,0]) - P[0,3]/(-P[0,0])
     return baseline
 
-class SubmiteDataset(object):
+class SHIFT_Dataset(object):
     def __init__(self, filepath, split, dynamic_bs=False, kitti2015=False):
         self.dynamic_bs = dynamic_bs
         left_fold = 'image_2/'
@@ -48,21 +49,16 @@ class SubmiteDataset(object):
             image = [x.strip() for x in f.readlines() if len(x.strip()) > 0]
         image = sorted(image)
 
-        if kitti2015:
-            self.left_test = [filepath + '/' + left_fold + img + '_10.png' for img in image]
-            self.right_test = [filepath + '/' + right_fold + img + '_10.png' for img in image]
-            self.calib_test = [filepath + '/' + calib_fold + img + '.txt' for img in image]
-        else:
-            self.left_test = [filepath + '/' + left_fold + img + '.png' for img in image]
-            self.right_test = [filepath + '/' + right_fold + img + '.png' for img in image]
-            self.calib_test = [filepath + '/' + calib_fold + img + '.txt' for img in image]
+        self.left_test = [filepath + '/' + left_fold + img + '.png' for img in image]
+        self.right_test = [filepath + '/' + right_fold + img + '.png' for img in image]
+        self.calib_test = [filepath + '/' + calib_fold + img + '.txt' for img in image]
 
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
         self.trans = transforms.Compose([
             transforms.ToTensor(),
-            normalize,
-            transforms.Resize(size= (384,1248))
+            normalize
+            # transforms.Resize(size= (384,1248))
         ])
 
 
@@ -78,19 +74,26 @@ class SubmiteDataset(object):
         imgL = Image.open(left_img).convert('RGB')
         imgR = Image.open(right_img).convert('RGB')
 
-           
-        imgL = self.trans(imgL)[None, :, :, :]
-        imgR = self.trans(imgR)[None, :, :, :]
+        imgL = self.trans(imgL)# [None, :, :, :]
+        imgL1 = transforms.functional.crop(imgL, 0, 0, 384, 1248)
+        imgL2 = transforms.functional.crop(imgL, 385, 0, 384, 1248)
+        imgR = self.trans(imgR)# [None, :, :, :]
+        imgR1 = transforms.functional.crop(imgR,0, 0, 384, 1248)
+        imgR2 = transforms.functional.crop(imgR,385, 0, 384, 1248)
+
         # pad to (384, 1248)
-        B, C, H, W = imgL.shape
-        top_pad = 384 - H
-        right_pad = 1248 - W
-        imgL = F.pad(imgL, (0, right_pad, top_pad, 0), "constant", 0)
-        imgR = F.pad(imgR, (0, right_pad, top_pad, 0), "constant", 0)
+        # B, C, H, W = imgL.shape
+        C,H,W = imgL1.shape
+        # top_pad = 384 - H
+        # right_pad = 1248 - W
+        # imgL = F.pad(imgL, (0, right_pad, top_pad, 0), "constant", 0)
+        # imgR = F.pad(imgR, (0, right_pad, top_pad, 0), "constant", 0)
         filename = self.left_test[item].split('/')[-1][:-4]
 
-        return imgL[0].float(), imgR[0].float(), calib.item(), H, W, filename
+        return (imgL1,imgL2), (imgR1,imgR2), calib.item(), H, W, filename
 
+
+### 
 
     def __len__(self):
         return len(self.left_test)

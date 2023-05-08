@@ -1,28 +1,30 @@
-
-from turtle import bgcolor
 import numpy as np
 import os
 import mayavi.mlab
-import pandas as pd
 import math
+import pandas as pd
 
 from generate_lidar_from_depth import depth_2_pointcloud
 
 ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
-DEPTH_PATH = os.path.join(ROOT_PATH,'results/SDN/depth_maps/')
-KITTI_PATH = "/home/robesafe/Datasets/kitti_pseudolidar/training/"
+DEPTH_PATH = os.path.join(ROOT_PATH,'results/SDN_shift/depth_maps/')
+# DEPTH_PATH = os.path.join(ROOT_PATH,'results/coex/depth_maps/')
+# KITTI_PATH = "/home/robesafe/Datasets/kitti_pseudolidar/training/"
+KITTI_PATH = "/home/robesafe/Datasets/shift_dataset/training"
 VELO_PATH = os.path.join(KITTI_PATH,"velodyne/")
+# VELO_PATH = '/home/robesafe/3d-detection-pipeline/results/SDN_kitti/lidar_from_depth/'
 CALIB_PATH = os.path.join(KITTI_PATH,"calib/")
 GT_PATH = os.path.join(KITTI_PATH,'label_2/')
 
-def main(transform_coord = False):
+
+
+def main(invert_y_3d_axis = True):
 
     # Load and transform data
 
     # 5(pedestrian 25m wrong),8(cars with noise),28(close pedestrian),47(multiple cars)
 
-    id = 5
-
+    id = 3500
     assert os.path.isfile(DEPTH_PATH + '{:06d}.npy'.format(id)), 'Depth file not found'
 
     # depth_files = [DEPTH_PATH + name for name in sorted(os.listdir(DEPTH_PATH)) if name.endswith('.npy')]
@@ -35,11 +37,14 @@ def main(transform_coord = False):
     velo_file = os.path.join(VELO_PATH, im_name + '.bin')
     depth_file = os.path.join(DEPTH_PATH, im_name + '.npy')
     
-    pointcloud = depth_2_pointcloud(calib_file,depth_dir=depth_file,save_dir=None,max_high=1).reshape([-1,4])
+    pointcloud = depth_2_pointcloud(calib_file,depth_dir=depth_file,max_high=4).reshape([-1,4])
     velo = np.fromfile(velo_file,dtype=np.float32, count=-1).reshape([-1,4])
+
+    print(np.max(pointcloud[:,0]))
+    print(np.max(velo[:,0]))
     
     print(f'Shape velo:{velo.shape} and shape depth:{pointcloud.shape} of image {im_name}')
-    
+    print(pointcloud)
 
     # Transformation matrices
 
@@ -60,16 +65,15 @@ def main(transform_coord = False):
     Tr_cam_to_velo = np.linalg.inv(Tr_velo_to_cam)
     R0_rect_inv = np.linalg.inv(R0_rect)
 
-    if transform_coord:
-    ######### Cambiar las coordenadas de camara a LiDAR
-        pointcloud = np.transpose(Tr_cam_to_velo @ R0_rect_inv @ np.transpose(pointcloud))
-    # print(pointcloud)
-
+    print(f'P2:\n{p2}\nR0_rect:\n{R0_rect}\nTr_velo_to_cam:\n{Tr_velo_to_cam}\nTr_cam_to_velo:\n{Tr_cam_to_velo}\nR0_rect_inv:\n{R0_rect_inv}')
 
     # Plotting
 
     x = pointcloud[:, 0]  # x position of point
-    y = pointcloud[:, 1]  # y position of point
+    if invert_y_3d_axis:
+        y = -pointcloud[:, 1]
+    else:
+        y = pointcloud[:, 1]  # y position of point
     z = pointcloud[:, 2]  # z position of point
     r = pointcloud[:, 3]  # reflectance value of point
     d = np.sqrt(x ** 2 + y ** 2)  # Map Distance from sensor
@@ -79,7 +83,7 @@ def main(transform_coord = False):
                      d,          # Values used for Color
                      mode="point",
                      colormap='spectral', # 'bone', 'copper', 'gnuplot'
-                     # color=(0.5, 0.5, 0.5),   # Used a fixed (r,g,b) instead
+                     color=(0.5, 0.5, 0.5),   # Used a fixed (r,g,b) instead
                      figure=fig,
                      )
     mayavi.mlab.points3d(0, 0, 0,
@@ -90,9 +94,12 @@ def main(transform_coord = False):
                     figure=fig,
                     )
 
-    #velo =  velo @ R0_rect
+    velo =  velo @ R0_rect
     x = np.asarray(velo[:, 0]).reshape(-1)  # x position of point
-    y = np.asarray(velo[:, 1]).reshape(-1)  # y position of point
+    if invert_y_3d_axis:
+        y = -np.asarray(velo[:, 1]).reshape(-1)
+    else:
+        y = np.asarray(velo[:, 1]).reshape(-1)  # y position of point
     z = np.asarray(velo[:, 2]).reshape(-1)  # z position of point
     r = np.asarray(velo[:, 3] ).reshape(-1) # reflectance value of point
 
@@ -100,7 +107,7 @@ def main(transform_coord = False):
 
                      mode="point",
                      colormap='spectral', # 'bone', 'copper', 'gnuplot'
-                     color=(1, 1, 1),   # Used a fixed (r,g,b) instead
+                     color=(1, 1, 0),   # Used a fixed (r,g,b) instead
                      figure=fig,
                      )                
 
@@ -110,7 +117,7 @@ def main(transform_coord = False):
     f_kitti = f_kitti[df_filter]
 
     for i in range(f_kitti.shape[0]):
-        plot_3d_box(f_kitti.iloc[i],fig,Tr_cam_to_velo,R0_rect_inv)
+        plot_3d_box(f_kitti.iloc[i],fig,Tr_cam_to_velo,R0_rect_inv,invert_y_3d_axis)
 
 
     x=np.linspace(0,50,6)
@@ -125,10 +132,14 @@ def main(transform_coord = False):
     mayavi.mlab.show()
     
 
-def plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv):
+def plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv,invert_y_3d_axis):
 
     pos = np.array(([row['x']],[row['y']],[row['z']],[1]))
     pos = np.reshape(Tr_cam_to_velo @ R0_rect_inv @ pos, (1,4)).tolist()[0]
+
+    if invert_y_3d_axis:
+        pos[1] = -pos[1]
+
     # print(pos[0])
     # print(np.reshape(pos,(1,4)))
     # print(R0_rect_inv @ Tr_cam_to_velo @ pos)
@@ -140,6 +151,9 @@ def plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv):
     bbox_3d = create_3d_bbox(row['rot'],(row['h'],row['w'],row['l']),(x,y,z))
     bbox_3d = Tr_cam_to_velo @ R0_rect_inv @ bbox_3d
     bbox_3d = np.hstack((bbox_3d[:,0:4],bbox_3d[:,0],bbox_3d[:,4:],bbox_3d[:,4:6],bbox_3d[:,1:3],bbox_3d[:,6:8],bbox_3d[:,3]))
+
+    if invert_y_3d_axis:
+        bbox_3d[1,:] = -bbox_3d[1,:]
 
     mayavi.mlab.plot3d(bbox_3d[0,:].tolist()[0], bbox_3d[1,:].tolist()[0], bbox_3d[2,:].tolist()[0],
                      color=(1, 0, 0),   # Used a fixed (r,g,b) instead

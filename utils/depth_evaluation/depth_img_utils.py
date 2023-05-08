@@ -13,17 +13,18 @@ import matplotlib.pyplot as plt
 from PIL import Image as im
 from tqdm import tqdm
 
+parser = configargparse.ArgParser(description='Transform depth maps to images')
+parser.add_argument('--save_path', type=str,
+    default='',
+    help='path to save the images')
+parser.add_argument('--depth_path', type=str,
+    default='',
+    help='path to read the depth files')
+
+args = parser.parse_args()
+
 def main():
 
-    parser = configargparse.ArgParser(description='Transform depth maps to images')
-    parser.add_argument('--save_path', type=str,
-        default='',
-        help='path to save the images')
-    parser.add_argument('--depth_path', type=str,
-        default='',
-        help='path to read the depth files')
-    
-    args = parser.parse_args()
 
     if not os.path.exists(args.save_path):
         os.mkdir(args.save_path)
@@ -63,7 +64,7 @@ def process_depth_files(source_depth, dest_folder):
         f = f*256.
 
         f = Image.fromarray(f.astype('uint16'))
-    
+           
         f.save(os.path.join(dest_folder,f_path.split('/')[-1].split('.')[0]+'.png'))
 
 
