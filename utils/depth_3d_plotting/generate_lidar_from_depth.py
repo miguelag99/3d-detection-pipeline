@@ -29,9 +29,19 @@ def depth_2_pointcloud(calib_dir, depth_dir, max_high = 1, filter_by_gt = None):
     depth_map = np.load(depth_dir)
 
     if filter_by_gt is not None:
-        depth_map = depth_map * filter_by_gt
-
-    lidar = project_disp_to_depth(calib, depth_map, max_high)
+        f = open(filter_by_gt)
+        ann_info = f.readlines()
+        f.close()
+        ann_info = list(map(lambda x: x.strip().split(' '), ann_info))
+        d_copy = np.zeros_like(depth_map)
+        for obj in ann_info:
+            (xmin, ymin, xmax, ymax) = (int(float(obj[4])), int(float(obj[5])), int(float(obj[6])), int(float(obj[7])))
+            d_copy[ymin:ymax, xmin:xmax] = depth_map[ymin:ymax, xmin:xmax]
+        (h,w) = depth_map.shape
+        d_copy[int(np.ceil(0.99*h)):,:] = depth_map[int(np.ceil(0.99*h)):,:]
+        lidar = project_disp_to_depth(calib, d_copy, max_high)
+    else:
+        lidar = project_disp_to_depth(calib, depth_map, max_high)
     # pad 1 in the indensity dimension
     lidar = np.concatenate([lidar, np.ones((lidar.shape[0], 1))], 1)
     lidar = lidar.astype(np.float32)

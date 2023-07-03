@@ -7,24 +7,26 @@ import pandas as pd
 from generate_lidar_from_depth import depth_2_pointcloud
 
 ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
-DEPTH_PATH = os.path.join(ROOT_PATH,'results/SDN_shift/depth_maps/')
-# DEPTH_PATH = os.path.join(ROOT_PATH,'results/coex/depth_maps/')
-# KITTI_PATH = "/home/robesafe/Datasets/kitti_pseudolidar/training/"
-KITTI_PATH = "/home/robesafe/Datasets/shift_dataset/training"
-VELO_PATH = os.path.join(KITTI_PATH,"velodyne/")
-# VELO_PATH = '/home/robesafe/3d-detection-pipeline/results/SDN_kitti/lidar_from_depth/'
-CALIB_PATH = os.path.join(KITTI_PATH,"calib/")
-GT_PATH = os.path.join(KITTI_PATH,'label_2/')
+
+DEPTH_PATH = os.path.join(ROOT_PATH,'results/SDN_kitti/depth_maps/')
+
+DATASET_PATH = "/media/robesafe/SSD_SATA/KITTI_DATASET/training/"
+# VELO_PATH = os.path.join(ROOT_PATH,'results/SDN_kitti/lidar_from_depth/')
+VELO_PATH = os.path.join(DATASET_PATH,"velodyne/")
+# VELO_PATH = '/home/robesafe/3d-detection-pipeline/results/SDN_shift/lidar_from_depth/'
+
+CALIB_PATH = os.path.join(DATASET_PATH,"calib/")
+GT_PATH = os.path.join(DATASET_PATH,'label_2/')
 
 
 
-def main(invert_y_3d_axis = True):
+def main(invert_y_3d_axis = False):
 
     # Load and transform data
 
     # 5(pedestrian 25m wrong),8(cars with noise),28(close pedestrian),47(multiple cars)
 
-    id = 3500
+    id = 2
     assert os.path.isfile(DEPTH_PATH + '{:06d}.npy'.format(id)), 'Depth file not found'
 
     # depth_files = [DEPTH_PATH + name for name in sorted(os.listdir(DEPTH_PATH)) if name.endswith('.npy')]
@@ -36,6 +38,7 @@ def main(invert_y_3d_axis = True):
     calib_file = os.path.join(CALIB_PATH, im_name + '.txt')
     velo_file = os.path.join(VELO_PATH, im_name + '.bin')
     depth_file = os.path.join(DEPTH_PATH, im_name + '.npy')
+    res_file = '/home/robesafe/perception-fusion/results/sdn_kitti_50_ep/objects/000067.txt'
     
     pointcloud = depth_2_pointcloud(calib_file,depth_dir=depth_file,max_high=4).reshape([-1,4])
     velo = np.fromfile(velo_file,dtype=np.float32, count=-1).reshape([-1,4])
@@ -69,6 +72,8 @@ def main(invert_y_3d_axis = True):
 
     # Plotting
 
+    plot_filter = (pointcloud[:,0] > 0) & (pointcloud[:,1] > -10) & (pointcloud[:,1] < 10) & (pointcloud[:,2] < 1) 
+
     x = pointcloud[:, 0]  # x position of point
     if invert_y_3d_axis:
         y = -pointcloud[:, 1]
@@ -78,9 +83,9 @@ def main(invert_y_3d_axis = True):
     r = pointcloud[:, 3]  # reflectance value of point
     d = np.sqrt(x ** 2 + y ** 2)  # Map Distance from sensor
 
-    fig = mayavi.mlab.figure(bgcolor=(0,0,0),size=(640,500))
-    mayavi.mlab.points3d(x, y, z,
-                     d,          # Values used for Color
+    fig = mayavi.mlab.figure(bgcolor=(0,0,0),size=(1920,1080))
+    mayavi.mlab.points3d(x[plot_filter], y[plot_filter], z[plot_filter],
+                     d[plot_filter],          # Values used for Color
                      mode="point",
                      colormap='spectral', # 'bone', 'copper', 'gnuplot'
                      color=(0.5, 0.5, 0.5),   # Used a fixed (r,g,b) instead
@@ -94,7 +99,9 @@ def main(invert_y_3d_axis = True):
                     figure=fig,
                     )
 
-    velo =  velo @ R0_rect
+    # velo =  velo @ R0_rect
+
+
     x = np.asarray(velo[:, 0]).reshape(-1)  # x position of point
     if invert_y_3d_axis:
         y = -np.asarray(velo[:, 1]).reshape(-1)
@@ -103,8 +110,9 @@ def main(invert_y_3d_axis = True):
     z = np.asarray(velo[:, 2]).reshape(-1)  # z position of point
     r = np.asarray(velo[:, 3] ).reshape(-1) # reflectance value of point
 
-    mayavi.mlab.points3d(x, y, z,
 
+    # mayavi.mlab.points3d(x[(x>0)&(y>-8)&(y<10)], y[(x>0)&(y>-8)&(y<10)], z[(x>0)&(y>-8)&(y<10)],
+    mayavi.mlab.points3d(x, y, z,
                      mode="point",
                      colormap='spectral', # 'bone', 'copper', 'gnuplot'
                      color=(1, 1, 0),   # Used a fixed (r,g,b) instead
@@ -116,23 +124,31 @@ def main(invert_y_3d_axis = True):
     df_filter=f_kitti['Class']!='DontCare'
     f_kitti = f_kitti[df_filter]
 
-    for i in range(f_kitti.shape[0]):
-        plot_3d_box(f_kitti.iloc[i],fig,Tr_cam_to_velo,R0_rect_inv,invert_y_3d_axis)
+    # for i in range(f_kitti.shape[0]):
+    #     plot_3d_box(f_kitti.iloc[i],fig,Tr_cam_to_velo,R0_rect_inv,invert_y_3d_axis)
 
 
-    x=np.linspace(0,50,6)
-    y=np.linspace(0,0,6)
-    z=np.linspace(0,0,6)
-    print(x)
-    mayavi.mlab.points3d(x,y,z,
-                         mode="sphere",
-                        scale_factor = 0.5,
-                        colormap='spectral', # 'bone', 'copper', 'gnuplot'
-                        figure=fig)
+    # f_kitti = pd.read_csv(res_file,sep=" ",header=None)
+    # f_kitti.columns= ["Class","truncated","occluded","alpha","left","top","rigth","bottom","h","w","l","x","y","z","rot"]
+    # df_filter=f_kitti['Class']!='DontCare'
+    # f_kitti = f_kitti[df_filter]
+
+    # for i in range(f_kitti.shape[0]):
+    #     plot_3d_box(f_kitti.iloc[i],fig,Tr_cam_to_velo,R0_rect_inv,invert_y_3d_axis,color=(0,1,0))
+
+    # x=np.linspace(0,50,6)
+    # y=np.linspace(0,0,6)
+    # z=np.linspace(0,0,6)
+    # print(x)
+    # mayavi.mlab.points3d(x,y,z,
+    #                      mode="sphere",
+    #                     scale_factor = 0.5,
+    #                     colormap='spectral', # 'bone', 'copper', 'gnuplot'
+    #                     figure=fig)
     mayavi.mlab.show()
     
 
-def plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv,invert_y_3d_axis):
+def plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv,invert_y_3d_axis, color = (1,0,0)):
 
     pos = np.array(([row['x']],[row['y']],[row['z']],[1]))
     pos = np.reshape(Tr_cam_to_velo @ R0_rect_inv @ pos, (1,4)).tolist()[0]
@@ -156,7 +172,7 @@ def plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv,invert_y_3d_axis):
         bbox_3d[1,:] = -bbox_3d[1,:]
 
     mayavi.mlab.plot3d(bbox_3d[0,:].tolist()[0], bbox_3d[1,:].tolist()[0], bbox_3d[2,:].tolist()[0],
-                     color=(1, 0, 0),   # Used a fixed (r,g,b) instead
+                     color=color,   # Used a fixed (r,g,b) instead
                      figure=fig,
                      )
     mayavi.mlab.points3d(pos[0], pos[1], pos[2],

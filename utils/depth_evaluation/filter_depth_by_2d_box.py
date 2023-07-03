@@ -33,7 +33,8 @@ def filter_depth_by_2d_box(depth_img_path_list, label_path, save_path):
                                 'height','width','length','x','y','z','rotation_y'])
         gt = gt[gt['bbox_left'] != 0]
 
-
+        gt = gt[(gt['type'] == 'Car') | (gt['type'] == 'Pedestrian') | (gt['type'] == 'Cyclist') | (gt['type'] == 'Misc')]
+        # gt = gt[(gt['type'] == 'Car') | (gt['type'] == 'Pedestrian')]
 
         # Read depth image
         depth_img = Image.open(depth_img_path)
@@ -42,12 +43,13 @@ def filter_depth_by_2d_box(depth_img_path_list, label_path, save_path):
 
         # Filter depth image
         for i in range(len(gt)):
-            bbox = gt.iloc[i]['bbox_left'], gt.iloc[i]['bbox_top'], gt.iloc[i]['bbox_right'], gt.iloc[i]['bbox_bottom']
+            bbox = int(gt.iloc[i]['bbox_left']), int(gt.iloc[i]['bbox_top']), int(gt.iloc[i]['bbox_right']), int(gt.iloc[i]['bbox_bottom'])
             copied_depth_img[bbox[1]:bbox[3], bbox[0]:bbox[2]] = depth_img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
 
-        # Add floor
+        # Add floor up to 50% of the image
         (h,w) = depth_img.shape
         copied_depth_img[int(np.ceil(0.75*h)):,:] = depth_img[int(np.ceil(0.75*h)):,:]
+
 
         # Save filtered depth image
         copied_depth_img = Image.fromarray(copied_depth_img.astype('uint16'))

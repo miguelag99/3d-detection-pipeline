@@ -52,14 +52,13 @@ parser.add_argument('--workers', type=int, default=0,
 args = parser.parse_args()
 
 DATAPATH = '/home/robesafe/Datasets/kitti_pseudolidar/training'
-# DATAPATH = '/media/robesafe/ff0fec18-b200-4f1b-b17e-f2c93f81163b1/shift_dataset/training'
 ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
-SAVE_PATH = os.path.join(ROOT_PATH,'results/SDN_kitti')
-IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets','trainval.txt') 
-# IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets','trainval.txt') 
-# IMAGE_LIST = '/media/robesafe/ff0fec18-b200-4f1b-b17e-f2c93f81163b1/shift_dataset/training.txt'
+SAVE_PATH = os.path.join(ROOT_PATH,'results/SDN_kitti_w_shift_weights')
+IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets','val.txt') 
 
-WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/fine_tune_kitti_trainval_last.tar') 
+
+# WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/fine_tune_kitti_trainval_last.tar') 
+WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/shift_checkpoint_50.pth.tar')
 DATA_TAG = 'pruebas'
 
 
@@ -103,7 +102,7 @@ def main():
     tqdm_eval_loader = tqdm(TestImgLoader, total=len(TestImgLoader),desc="Inference")
     for batch_idx, (imgL_crop, imgR_crop, calib, H, W, filename) in enumerate(tqdm_eval_loader):
         # print(f'imgL shape: {imgL_crop.shape} {type(imgL_crop)}, imgR shape: {imgR_crop.shape} {type(imgR_crop)}')
-        pred_disp = inference(imgL_crop, imgR_crop, calib, model)
+        pred_disp = inference(imgL_crop, imgR_crop, calib, model, H, W)
         
         for idx, name in enumerate(filename):
             # np.save(SAVE_PATH + '/depth_maps/' + DATA_TAG + '/' + name, pred_disp[idx][-H[idx]:, :W[idx]])
@@ -116,7 +115,7 @@ def main():
 
 
     
-def inference(imgL, imgR, calib, model):
+def inference(imgL, imgR, calib, model, H, W):
 
     # LOGGERS
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
@@ -125,7 +124,7 @@ def inference(imgL, imgR, calib, model):
     
     imgL, imgR, calib = imgL.cuda(), imgR.cuda(), calib.float().cuda()
     # print(f'imgL shape: {imgL.shape} {type(imgL)}, imgR shape: {imgR.shape} {type(imgR)}, calib shape: {calib.shape} {type(calib)}')
-    
+
     start_time = time.time()
     with torch.no_grad():  
         starter.record()      
@@ -143,15 +142,16 @@ def inference(imgL, imgR, calib, model):
     if args.data_type == 'disparity':
         output = disp2depth(output, calib)
 
-   
     pred_disp = output.data.cpu().numpy()
 
 
-    disp_as_img = cv2.resize(pred_disp[0,:,:], (im_dim[1], im_dim[0]), interpolation=cv2.INTER_NEAREST)
-    pred_disp = np.zeros((1, im_dim[0], im_dim[1]))
-    pred_disp[0,:,:] = disp_as_img
+   
+    # disp_as_img = cv2.resize(pred_disp[0,:,:], (im_dim[1], im_dim[0]), interpolation=cv2.INTER_NEAREST)
+    # pred_disp = np.zeros((1, im_dim[0], im_dim[1]))
+    # pred_disp[0,:,:] = disp_as_img
 
-    return pred_disp
+
+    return pred_disp[:, :H.data.cpu(), :W.data.cpu()]
 
 def disp2depth(disp, calib):
     depth = calib[:, None, None] / disp.clamp(min=1e-8)

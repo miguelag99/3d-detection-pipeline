@@ -61,8 +61,8 @@ class SubmiteDataset(object):
                                          std=[0.229, 0.224, 0.225])
         self.trans = transforms.Compose([
             transforms.ToTensor(),
-            normalize,
-            transforms.Resize(size= (384,1248))
+            normalize
+            # transforms.Resize(size= (384,1248))
         ])
 
 

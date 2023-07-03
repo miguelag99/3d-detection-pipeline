@@ -54,10 +54,11 @@ args = parser.parse_args()
 
 DATAPATH = '/home/robesafe/Datasets/shift_dataset/training'
 ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
-SAVE_PATH = os.path.join(ROOT_PATH,'results/SDN_shift')
-IMAGE_LIST = '/home/robesafe/Datasets/shift_dataset/trainval.txt'
+SAVE_PATH = os.path.join(ROOT_PATH,'results/SDN_shift_w_kitti_weights')
+IMAGE_LIST = '/home/robesafe/Datasets/shift_dataset/ImageSets/val.txt'
 
-WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/shift_checkpoint_25.pth.tar') 
+# WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/shift_checkpoint_50.pth.tar') ## Anterior mal puesto
+WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/SDN/fine_tune_kitti_trainval_last.tar') 
 DATA_TAG = 'pruebas'
 
 im_dim = (cv2.imread(DATAPATH + '/image_2/000000.png')).shape

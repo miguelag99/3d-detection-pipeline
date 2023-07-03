@@ -16,10 +16,10 @@ from tqdm import tqdm
 
 DATAPATH = '/home/robesafe/Datasets/kitti_pseudolidar/training'
 ROOT_PATH = '/home/robesafe/3d-detection-pipeline'
-SAVE_PATH = os.path.join(ROOT_PATH,'results/coex')
-IMAGE_LIST = os.path.join(ROOT_PATH,'imagenes.txt') 
-# IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets/val.txt') 
-WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/coex/last.ckpt') 
+SAVE_PATH = os.path.join(ROOT_PATH,'results/coex_kitti_w_shift_weights')
+#IMAGE_LIST = os.path.join(ROOT_PATH,'imagenes.txt') 
+IMAGE_LIST = os.path.join(ROOT_PATH,'ImageSets','trainval.txt') 
+WEIGHTS = os.path.join(ROOT_PATH,'checkpoints/coex/coex_shift_50ep.ckpt') 
 KITTI_STEREO_BASELINE = 0.54    # distance between left and right images in meters (KITTI)
 
 import sys
@@ -120,7 +120,7 @@ def main():
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
     # Dataloader
-    kit_dataloader = KITTIStereoDataloader(DATAPATH,IMAGE_LIST)
+    # kit_dataloader = KITTIStereoDataloader(DATAPATH,IMAGE_LIST)
 
     with open(IMAGE_LIST,'r') as f_content:
         images_names = list(map(lambda x: x.split('\n')[0], f_content.readlines()))
@@ -158,7 +158,6 @@ def main():
             with torch.cuda.amp.autocast(enabled=half_precision):
                 
                 img = torch.cat([imgL, imgR], 0)
-                print(img.shape)
                 disp = pose_ssstereo(img, training=False)
                 disp = torch.squeeze(disp, 0)
         
@@ -172,8 +171,9 @@ def main():
             acc_fps += 1/(starter.elapsed_time(ender)/1000)
         
         predicted_depth = (fy*KITTI_STEREO_BASELINE)/disp.cpu().numpy()
-        
-        np.save(SAVE_PATH + '/depth_maps/' + image_n , predicted_depth)
+
+       
+        np.save(SAVE_PATH + '/depth_maps/' + image_n , predicted_depth[0:H,0:W])
 
     print(f'Average FPS: {acc_fps/(len(images_names)-1)}')
 

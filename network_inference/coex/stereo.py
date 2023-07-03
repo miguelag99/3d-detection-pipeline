@@ -16,7 +16,7 @@ from pytorch_lightning.core.lightning import LightningModule
 from ruamel.yaml import YAML
 
 # from models import *
-from utils.load import load_class
+from dataloader.load import load_class
 
 
 import pdb
