@@ -5,6 +5,10 @@ import math
 import pandas as pd
 import argparse
 
+import matplotlib.pyplot as plt
+import cv2
+
+import pdb
 
 def main(args):
 
@@ -26,7 +30,6 @@ def main(args):
     velo_file = os.path.join(VELO_PATH, im_name + '.bin')
 
     velo = np.fromfile(velo_file,dtype=np.float32, count=-1).reshape([-1,4])
-    print(velo.shape)
 
     # Transformation matrices
 
@@ -59,85 +62,112 @@ def main(args):
     velo = np.delete(velo,filter_pcl,axis=0)
     velo = np.delete(velo,(velo[:,0]<0)|(velo[:,0]>50),axis=0)
 
+    
+
     print(proj_pcl.shape)
     print(velo.shape)
 
 
+
     # Plotting
 
-    fig = mayavi.mlab.figure(bgcolor=(0,0,0),size=(1920,1080))
+    height = 1000
+    width = 1500
+    ego_pose = (int(width/2),900)
+    img = np.ones((height,width,3))
 
-    mayavi.mlab.points3d(0, 0, 0,
-                mode="sphere",
-                scale_factor = 0.5,
-                colormap='spectral', # 'bone', 'copper', 'gnuplot'
-                # color=(0.5, 0.5, 0.5),   # Used a fixed (r,g,b) instead
-                figure=fig,
-                )
+    min_dist = 10
+    max_dist = 70
+    step = 10
+    circ_m = np.arange(min_dist,max_dist+step,step)
+    circ_text = [str(x) for x in circ_m]
 
-    x = np.asarray(velo[:, 0]).reshape(-1)  # x position of point
-    y = np.asarray(velo[:, 1]).reshape(-1)  # y position of point
-    z = np.asarray(velo[:, 2]).reshape(-1)  # z position of point
+    r = 1
+    g = 1
+    b = 1
+
+    pix_2_m_ratio = args.ratio
+
+    # Print distance circles
+
+    for d in reversed(circ_m):
+        r *= 0.75
+        g *= 0.75
+        b *= 0.75
+
+        cv2.circle(img,ego_pose, int(d*pix_2_m_ratio), (b,g,r), -1)
+
+
+
+    # Print FOV lines
+
+    fov = 90*np.pi/180
+
+    cv2.line(img,ego_pose,
+             (int(ego_pose[0]+ math.sin(fov/2)*max_dist*pix_2_m_ratio),int(ego_pose[1]- math.cos(fov/2)*max_dist*pix_2_m_ratio)),
+             (1,0,1),2)
     
-    mayavi.mlab.points3d(x, y, z,
-                color = (1,1,1),
-                mode="point",
-                colormap='spectral',
-                figure=fig
-                )   
+    cv2.line(img,ego_pose,
+            (int(ego_pose[0]- math.sin(fov/2)*max_dist*pix_2_m_ratio),int(ego_pose[1]- math.cos(fov/2)*max_dist*pix_2_m_ratio)),
+            (1,0,1),2)
 
+    # Print distance text
+
+    for d in reversed(circ_m):
+
+        pix_u = int(ego_pose[0]+ math.sin(fov/2)*d*pix_2_m_ratio) + int(2*pix_2_m_ratio)
+        pix_v = int(ego_pose[1]- math.cos(fov/2)*d*pix_2_m_ratio) + int(2*pix_2_m_ratio)
+
+        cv2.putText(img, circ_text.pop(), (pix_u,pix_v),
+                    cv2.FONT_HERSHEY_SIMPLEX,0.1*pix_2_m_ratio, (1,0,0), 2, cv2.LINE_AA)
+
+    # Print obstacles
 
     f_kitti = pd.read_csv(gt_file,sep=" ",header=None)
     f_kitti.columns= ["Class","truncated","occluded","alpha","left","top","rigth","bottom","h","w","l","x","y","z","rot"]
     df_filter=f_kitti['Class']!='DontCare'
     f_kitti = f_kitti[df_filter]
 
-    for i,row in f_kitti.iterrows():
-        plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv,p2,IM_SIZE)
+    for i,row in f_kitti.iterrows(): 
+
+        u = int(row['x']*pix_2_m_ratio + ego_pose[0])
+        v = int(row['z']*pix_2_m_ratio + ego_pose[1] - 2*row['z']*pix_2_m_ratio)
+        cv2.circle(img,(u,v), 5, (0,0,255), -1)
+
+        # Plot 3D boxes
+        box_3d = create_3d_bbox(row['rot'],(row['h'],row['w'],row['l']),(row['x'],row['y'],row['z']))[:,4:]
+
+        # for pt in box_3d.T:       
+        #     x,y,z = pt[0],pt[1],pt[2]
+        #     u = int(x*pix_2_m_ratio + ego_pose[0])
+        #     v = int(z*pix_2_m_ratio + ego_pose[1] - 2*z*pix_2_m_ratio)
+        #     cv2.circle(img,(u,v), 5, (0,0,255), -1)
+
+        color = (0,255,0)
+
+        u1,v1 = int(box_3d[0,0]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,0]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,0]*pix_2_m_ratio)
+        u2,v2 = int(box_3d[0,1]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,1]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,1]*pix_2_m_ratio)
+        cv2.line(img,(u1,v1),(u2,v2),color,1)
+
+        u1,v1 = int(box_3d[0,1]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,1]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,1]*pix_2_m_ratio)
+        u2,v2 = int(box_3d[0,2]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,2]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,2]*pix_2_m_ratio)
+        cv2.line(img,(u1,v1),(u2,v2),color,1)
+
+        u1,v1 = int(box_3d[0,2]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,2]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,2]*pix_2_m_ratio)
+        u2,v2 = int(box_3d[0,3]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,3]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,3]*pix_2_m_ratio)
+        cv2.line(img,(u1,v1),(u2,v2),color,1)
+
+        u1,v1 = int(box_3d[0,3]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,3]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,3]*pix_2_m_ratio)
+        u2,v2 = int(box_3d[0,0]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,0]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,0]*pix_2_m_ratio)
+        cv2.line(img,(u1,v1),(u2,v2),color,1)
 
 
-    mayavi.mlab.view(azimuth=-0, elevation=0, distance=45,focalpoint=(25,0,0))
-    # mayavi.mlab.savefig('test.png', figure=fig)
-    mayavi.mlab.show()
+
+    cv2.imshow('Color image', img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
-
-def plot_3d_box(row,fig,Tr_cam_to_velo,R0_rect_inv,P2,im_size,invert_y_3d_axis=False,color = (1,0,0)):
-
-    pos = np.array(([row['x']],[row['y']],[row['z']],[1]))
-
-    center_proj = P2 @ pos
-    center_proj = center_proj[:2] / center_proj[2]
-
-    if (center_proj[0] > 0) and (center_proj[0] < im_size[0]) and (center_proj[1] > 0) and (center_proj[1] < im_size[1]):
-
-        pos = np.reshape(Tr_cam_to_velo @ R0_rect_inv @ pos, (1,4)).tolist()[0]
-
-        if invert_y_3d_axis:
-            pos[1] = -pos[1]
-
-        x = row['x']
-        y = row['y']
-        z = row['z']
-
-        bbox_3d = create_3d_bbox(row['rot'],(row['h'],row['w'],row['l']),(x,y,z))
-        bbox_3d = Tr_cam_to_velo @ R0_rect_inv @ bbox_3d
-        bbox_3d = np.hstack((bbox_3d[:,0:4],bbox_3d[:,0],bbox_3d[:,4:],bbox_3d[:,4:6],bbox_3d[:,1:3],bbox_3d[:,6:8],bbox_3d[:,3]))
-
-        if invert_y_3d_axis:
-            bbox_3d[1,:] = -bbox_3d[1,:]
-
-        mayavi.mlab.plot3d(bbox_3d[0,:].tolist()[0], bbox_3d[1,:].tolist()[0], bbox_3d[2,:].tolist()[0],
-                        color=color,   # Used a fixed (r,g,b) instead
-                        figure=fig,
-                        )
-        mayavi.mlab.points3d(pos[0], pos[1], pos[2],
-                        mode="sphere",
-                        scale_factor = 0.2,
-                        colormap='spectral', # 'bone', 'copper', 'gnuplot'
-                        # color=(0.5, 0.5, 0.5),   # Used a fixed (r,g,b) instead
-                        figure=fig,
-                        )
 
 
 
@@ -151,6 +181,18 @@ def rotation_mat(angle):
     # rot = np.vstack(([1,0,0],[0,cos,-sin],[0,sin,cos]))
   
     return rot
+def rotation_matrix(yaw, pitch=0, roll=0):
+    tx = roll
+    ty = yaw
+    tz = pitch
+
+    Rx = np.array([[1,0,0], [0, np.cos(tx), -np.sin(tx)], [0, np.sin(tx), np.cos(tx)]])
+    Ry = np.array([[np.cos(ty), 0, np.sin(ty)], [0, 1, 0], [-np.sin(ty), 0, np.cos(ty)]])
+    Rz = np.array([[np.cos(tz), -np.sin(tz), 0], [np.sin(tz), np.cos(tz), 0], [0,0,1]])
+
+
+    return Ry.reshape([3,3])
+    # return np.dot(np.dot(Rz,Ry), Rx)
 
 def create_3d_bbox(rot,dim,loc):
 
@@ -173,6 +215,7 @@ if __name__ == '__main__':
     # Add argparser arguments
     parser.add_argument('-i', '--id', type=int, help='Image id', default=0)
     parser.add_argument('-d', '--dataset', type=str, help='Dataset name', default='kitti',choices=['kitti','shift'])
+    parser.add_argument('-r','--ratio', type=float, help='Pixel to meter ratio', default=10)
     args = parser.parse_args()
 
     main(args)
