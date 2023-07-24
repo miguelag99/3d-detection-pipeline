@@ -6,6 +6,7 @@ import argparse
 
 import matplotlib.pyplot as plt
 import cv2
+import imageio
 from tqdm import tqdm
 
 color_map = {
@@ -23,6 +24,9 @@ def main(args):
     if args.dataset == 'kitti':
         DATASET_PATH = "/media/robesafe/SSD_SATA/KITTI_DATASET/training/"
         IM_SIZE = (1242,375)
+    elif args.dataset == 'kitti_raw':
+        DATASET_PATH = "/home/robesafe/Datasets/2011_09_26_drive_0013_sync"
+        IM_SIZE = (1242,375)
     else:
         DATASET_PATH = "/media/robesafe/SSD_SATA/shift_dataset/training"
         IM_SIZE = (1280,800)
@@ -33,11 +37,17 @@ def main(args):
 
     id  = args.id
 
-    if args.img_list != '':
+    if args.img_list != '' and args.gif_seq == False:
         ids = np.loadtxt(args.img_list,dtype=np.int16)
+    elif args.gif_seq == True:
+        out_gif = imageio.get_writer(os.path.join(args.save_path,'bev.gif'), mode='I',fps=5)
+        print("Saving gif at {}".format(os.path.join(args.save_path,'bev.gif')))
+        ids = [int(x.split('.')[0]) for x in sorted(os.listdir(os.path.join(DATASET_PATH,"label_2/")))]
     else:
         ids = [id]
 
+
+        
 
     for n in tqdm(ids):
 
@@ -81,7 +91,8 @@ def main(args):
         # Prepare visualizator
         ego_pose = (750,1000)
         pix_2_m_ratio = args.ratio
-        img = prepare_visualizator(pix_2_m_ratio = pix_2_m_ratio,ego_pose = ego_pose)
+        display_size = (1000,1500)
+        img = prepare_visualizator(height = display_size[0], width = display_size[1],pix_2_m_ratio = pix_2_m_ratio,ego_pose = ego_pose)
 
         # Print obstacles
         try:
@@ -112,19 +123,28 @@ def main(args):
             except:
                 print("No detections found at {}".format(detection_txt))
 
-        if args.save_path != '':
+        if args.save_path != '' and args.gif_seq == False:
             cv2.imwrite(os.path.join(args.save_path,im_name+'_bev.png'),img)
+        elif args.save_path != '' and args.gif_seq == True:
+            color_img = cv2.imread(os.path.join(DATASET_PATH,'image_02',im_name+'.png'))
+            ratio = IM_SIZE[1]/IM_SIZE[0]
+            color_img = cv2.resize(color_img,(display_size[1],int(display_size[1]*ratio)))
+            color_img = cv2.cvtColor(color_img,cv2.COLOR_BGR2RGB)
+            out_gif.append_data(np.vstack((img.astype(np.uint8),color_img)))
         else:
             cv2.imshow('Color image', img.astype(np.uint8))
             cv2.waitKey(0)
             cv2.destroyAllWindows()
+
+    if args.gif_seq == True:
+        out_gif.close()
 
 
 def prepare_visualizator(height = 1000, width = 1500, pix_2_m_ratio = 10,
                          min_dist = 10, max_dist = 70, step = 10, fov = 90,
                          ego_pose = (750,900)):
     
-    img = np.zeros((height,width,3))
+    img = np.ones((height,width,3))*255
 
     circ_m = np.arange(min_dist,max_dist+step,step)
     circ_text = [str(x) for x in circ_m]
@@ -135,28 +155,28 @@ def prepare_visualizator(height = 1000, width = 1500, pix_2_m_ratio = 10,
 
     # Print distance circles
     for d in reversed(circ_m):
-        r *= 0.75
-        g *= 0.75
-        b *= 0.75
+        r *= 0.9
+        g *= 0.9
+        b *= 0.9
         cv2.circle(img,ego_pose, int(d*pix_2_m_ratio), (int(b),int(g),int(r)), -1)
 
     # Print FOV lines
     fov = 90*np.pi/180
     cv2.line(img,ego_pose,
-             (int(ego_pose[0]+ math.sin(fov/2)*max_dist*pix_2_m_ratio),int(ego_pose[1]- math.cos(fov/2)*max_dist*pix_2_m_ratio)),
-             (255,0,255),2)
+            (int(ego_pose[0]+ math.sin(fov/2)*max_dist*pix_2_m_ratio),int(ego_pose[1]- math.cos(fov/2)*max_dist*pix_2_m_ratio)),
+            (129,33,125),2)
     cv2.line(img,ego_pose,
             (int(ego_pose[0]- math.sin(fov/2)*max_dist*pix_2_m_ratio),int(ego_pose[1]- math.cos(fov/2)*max_dist*pix_2_m_ratio)),
-            (255,0,255),2)
+            (129,33,125),2)
 
     # Print distance text
     for d in reversed(circ_m):
         pix_u = int(ego_pose[0]+ math.sin(fov/2)*d*pix_2_m_ratio) + int(2*pix_2_m_ratio)
         pix_v = int(ego_pose[1]- math.cos(fov/2)*d*pix_2_m_ratio) + int(2*pix_2_m_ratio)
         cv2.putText(img, circ_text.pop(), (pix_u,pix_v),
-                    cv2.FONT_HERSHEY_SIMPLEX,0.1*pix_2_m_ratio, (255,0,255), 2, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_SIMPLEX,0.1*pix_2_m_ratio, (129,33,125), 2, cv2.LINE_AA)
         
-    return img
+    return img 
 
 def plot_3d_bev_box(img,box_3d,ego_pose,pix_2_m_ratio,color=(0,255,0),thickness=-1):
 
@@ -224,14 +244,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot KITTI and SHIFT dataset ground truth')
     # Add argparser arguments
     parser.add_argument('-i', '--id', type=int, help='Image id', default=0)
-    parser.add_argument('-d', '--dataset', type=str, help='Dataset name', default='kitti',choices=['kitti','shift'])
+    parser.add_argument('-d', '--dataset', type=str, help='Dataset name', default='kitti',choices=['kitti','kitti_raw','shift'])
     parser.add_argument('-r','--ratio', type=float, help='Pixel to meter ratio', default=10)
     parser.add_argument('-det_p','--detect_path',type=str,help='Detection path',default='')
     parser.add_argument('-s','--save_path',type=str,help='Save path',default='')
     parser.add_argument('-im_l','--img_list',type=str,help='Image list',default='')
+    parser.add_argument('-g','--gif_seq',action='store_true',help='Save as gif')
     args = parser.parse_args()
 
-    if not os.path.exists(args.save_path):
+    if not os.path.exists(args.save_path) and args.save_path != '':
         os.makedirs(args.save_path)
 
     main(args)
