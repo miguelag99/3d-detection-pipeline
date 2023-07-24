@@ -106,8 +106,8 @@ def main(args):
                 if row['Class'] in color_map.keys():
                     box_3d = create_3d_bbox(row['rot'],(row['h'],row['w'],row['l']),(row['x'],row['y'],row['z']))[:,4:]
                     plot_3d_bev_box(img,box_3d,ego_pose,pix_2_m_ratio,color_map[row['Class']])
-        except:
-            print("No ground truth found at {}".format(gt_file))
+        except Exception as e:
+            print("No ground truth found at {}. {}".format(gt_file,e))
 
         if args.detect_path != '':
             detection_txt = os.path.join(args.detect_path,im_name+'.txt')
@@ -209,7 +209,12 @@ def plot_3d_bev_box(img,box_3d,ego_pose,pix_2_m_ratio,color=(0,255,0),thickness=
         u2,v2 = int(box_3d[0,0]*pix_2_m_ratio + ego_pose[0]),int(box_3d[2,0]*pix_2_m_ratio + ego_pose[1] - 2*box_3d[2,0]*pix_2_m_ratio)
         # cv2.line(img,(u1,v1),(u2,v2),color,2,cv2.LINE_AA)
 
+        # Try transform to polygon
         cv2.drawContours(img, [np.array([p1,p2,p3,p4])], -1, color, thickness, cv2.LINE_AA)
+        cv2.arrowedLine(img,
+                        p4,p1,
+                        color,4,cv2.LINE_AA
+                        )
 
 
 def rotation_mat(angle):

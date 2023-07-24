@@ -11,7 +11,7 @@ import pdb
 kittiDir = '/home/robesafe/Datasets/'
 drive = '2011_09_26_drive_0013_sync'
 
-DEFAULT_DRIVE = '2011_09_26_drive_0013_sync'
+DEFAULT_DRIVE = drive
 twoPi = 2.*np.pi
 
 # Create gt files
@@ -122,18 +122,20 @@ for iTracklet, tracklet in enumerate(tracklets):
         
         x_c, y_c, z_c = cam_coord[0,0], cam_coord[1,0], cam_coord[2,0]
 
-    
+        '''
         if yaw > -np.pi/2 and yaw < np.pi/2:
             yaw += np.pi/2
+            
         elif yaw < -np.pi/2:
             yaw += np.pi/2
         else:
             yaw -= 3*np.pi/2
-
+        ''' 
+        print('yaw: ',yaw)
         # Save data in kitti format
         with open(os.path.join(kittiDir,drive,'label_2','{:06d}.txt'.format(absoluteFrameNumber)),'a') as fd:
             fd.write("{} 0.00 0 {} {} {} {} {} {} {} {} {} {} {} {}".format(cl,alpha,bbox[0],bbox[1],bbox[2],bbox[3],\
-                                h,w,l,x_c,y_c,z_c,yaw))
+                                h,w,l,x_c,y_c,z_c,-yaw-np.pi/2))
             fd.write('\n')
 
         
