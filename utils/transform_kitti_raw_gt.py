@@ -14,23 +14,43 @@ drive = '2011_09_26_drive_0013_sync'
 DEFAULT_DRIVE = drive
 twoPi = 2.*np.pi
 
+
+
+# Rename folders and change file directory
+if os.path.exists(os.path.join(kittiDir,drive,'image_02')):
+    os.remove(os.path.join(kittiDir,drive,'image_02','timestamps.txt'))
+    os.rename(os.path.join(kittiDir,drive,'image_02','data'),os.path.join(kittiDir,drive,'image_2'))
+    os.rmdir(os.path.join(kittiDir,drive,'image_02'))
+if os.path.exists(os.path.join(kittiDir,drive,'image_03')):
+    os.remove(os.path.join(kittiDir,drive,'image_03','timestamps.txt'))
+    os.rename(os.path.join(kittiDir,drive,'image_03','data'),os.path.join(kittiDir,drive,'image_3'))
+    os.rmdir(os.path.join(kittiDir,drive,'image_03'))
+if os.path.exists(os.path.join(kittiDir,drive,'velodyne_points')):
+    os.remove(os.path.join(kittiDir,drive,'velodyne_points','timestamps.txt'))
+    os.remove(os.path.join(kittiDir,drive,'velodyne_points','timestamps_end.txt'))
+    os.remove(os.path.join(kittiDir,drive,'velodyne_points','timestamps_start.txt'))
+    os.rename(os.path.join(kittiDir,drive,'velodyne_points','data'),os.path.join(kittiDir,drive,'velodyne'))
+    os.rmdir(os.path.join(kittiDir,drive,'velodyne_points'))
+
+
 # Create gt files
 if not os.path.exists(os.path.join(kittiDir,drive,'label_2')):
     os.makedirs(os.path.join(kittiDir,drive,'label_2'))
 if not os.path.exists(os.path.join(kittiDir,drive,'calib')):
     os.makedirs(os.path.join(kittiDir,drive,'calib'))
 
-
-for name in os.listdir(os.path.join(kittiDir,drive,'image_02')):
+for name in os.listdir(os.path.join(kittiDir,drive,'image_2')):
     frame_name = Path(name).stem
     if len(frame_name) > 6:
         print('Renaming frame: ',frame_name)
         frame_name = '{:06d}'.format(int(frame_name))
-        os.rename(os.path.join(kittiDir,drive,'image_02',name),os.path.join(kittiDir,drive,'image_02',frame_name+'.png'))
+        os.rename(os.path.join(kittiDir,drive,'image_2',name),os.path.join(kittiDir,drive,'image_2',frame_name+'.png'))
+        os.rename(os.path.join(kittiDir,drive,'image_3',name),os.path.join(kittiDir,drive,'image_3',frame_name+'.png'))
+        os.rename(os.path.join(kittiDir,drive,'velodyne',name.split('.')[0]+'.bin'),os.path.join(kittiDir,drive,'velodyne',frame_name+'.bin'))
 
     open(os.path.join(kittiDir,drive,'label_2',frame_name+'.txt'),'w+').close()
 
-for name in os.listdir(os.path.join(kittiDir,drive,'image_02')):
+for name in os.listdir(os.path.join(kittiDir,drive,'image_2')):
     frame_name = Path(name).stem
     with open(os.path.join(kittiDir,drive,'calib',frame_name+'.txt'),'w+') as fd:
         fd.writelines(

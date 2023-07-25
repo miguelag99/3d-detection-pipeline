@@ -6,7 +6,6 @@ import argparse
 
 import matplotlib.pyplot as plt
 import cv2
-import imageio
 from tqdm import tqdm
 
 color_map = {
@@ -18,6 +17,7 @@ color_map = {
     'Misc': (81,0,81),
     'Tram': (0,0,230),
 }
+
 
 def main(args):
 
@@ -37,17 +37,19 @@ def main(args):
 
     id  = args.id
 
+    display_size = (1000,1500)        
+
     if args.img_list != '' and args.gif_seq == False:
         ids = np.loadtxt(args.img_list,dtype=np.int16)
     elif args.gif_seq == True:
-        out_gif = imageio.get_writer(os.path.join(args.save_path,'bev.gif'), mode='I',fps=5)
-        print("Saving gif at {}".format(os.path.join(args.save_path,'bev.gif')))
+        out_gif = cv2.VideoWriter(os.path.join(args.save_path,'bev.mp4'), 
+                         cv2.VideoWriter_fourcc(*'mp4v'),
+                         10, (display_size[1],display_size[0]+int(display_size[1]*(IM_SIZE[1]/IM_SIZE[0]))))
+        print("Saving gif at {}".format(os.path.join(args.save_path,'bev.avi')))
         ids = [int(x.split('.')[0]) for x in sorted(os.listdir(os.path.join(DATASET_PATH,"label_2/")))]
+        
     else:
         ids = [id]
-
-
-        
 
     for n in tqdm(ids):
 
@@ -91,7 +93,7 @@ def main(args):
         # Prepare visualizator
         ego_pose = (750,1000)
         pix_2_m_ratio = args.ratio
-        display_size = (1000,1500)
+        transparency_factor = 0.3
         img = prepare_visualizator(height = display_size[0], width = display_size[1],pix_2_m_ratio = pix_2_m_ratio,ego_pose = ego_pose)
 
         # Print obstacles
@@ -101,11 +103,18 @@ def main(args):
             df_filter=f_kitti['Class']!='DontCare'
             f_kitti = f_kitti[df_filter]
 
+            transparent_img = img.copy()
+
             for i,row in f_kitti.iterrows(): 
                 # Plot 3D boxes
                 if row['Class'] in color_map.keys():
                     box_3d = create_3d_bbox(row['rot'],(row['h'],row['w'],row['l']),(row['x'],row['y'],row['z']))[:,4:]
-                    plot_3d_bev_box(img,box_3d,ego_pose,pix_2_m_ratio,color_map[row['Class']])
+                    plot_3d_bev_box(transparent_img,box_3d,ego_pose,pix_2_m_ratio,color_map[row['Class']])
+
+
+            img = cv2.addWeighted(transparent_img,transparency_factor,img,1-transparency_factor,0)
+
+
         except Exception as e:
             print("No ground truth found at {}. {}".format(gt_file,e))
 
@@ -126,18 +135,20 @@ def main(args):
         if args.save_path != '' and args.gif_seq == False:
             cv2.imwrite(os.path.join(args.save_path,im_name+'_bev.png'),img)
         elif args.save_path != '' and args.gif_seq == True:
-            color_img = cv2.imread(os.path.join(DATASET_PATH,'image_02',im_name+'.png'))
+            color_img = cv2.imread(os.path.join(DATASET_PATH,'image_2',im_name+'.png'))
             ratio = IM_SIZE[1]/IM_SIZE[0]
             color_img = cv2.resize(color_img,(display_size[1],int(display_size[1]*ratio)))
-            color_img = cv2.cvtColor(color_img,cv2.COLOR_BGR2RGB)
-            out_gif.append_data(np.vstack((img.astype(np.uint8),color_img)))
+            # color_img = cv2.cvtColor(color_img,cv2.COLOR_BGR2RGB)
+
+            out_gif.write(np.vstack((img.astype(np.uint8),color_img)))
+            
         else:
             cv2.imshow('Color image', img.astype(np.uint8))
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
     if args.gif_seq == True:
-        out_gif.close()
+        out_gif.release()
 
 
 def prepare_visualizator(height = 1000, width = 1500, pix_2_m_ratio = 10,
@@ -211,9 +222,13 @@ def plot_3d_bev_box(img,box_3d,ego_pose,pix_2_m_ratio,color=(0,255,0),thickness=
 
         # Try transform to polygon
         cv2.drawContours(img, [np.array([p1,p2,p3,p4])], -1, color, thickness, cv2.LINE_AA)
+
+        # Plot orientation arrow
+        front_point = (int((p1[0]+p2[0])/2),int((p1[1]+p2[1])/2))
+        centroid = (int((p1[0]+p2[0]+p3[0]+p4[0])/4),int((p1[1]+p2[1]+p3[1]+p4[1])/4))
         cv2.arrowedLine(img,
-                        p4,p1,
-                        color,4,cv2.LINE_AA
+                        centroid,front_point,
+                        (0,0,0),4,cv2.LINE_AA
                         )
 
 
